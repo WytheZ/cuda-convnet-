@@ -1,0 +1,18 @@
+介绍
+  这个程序的输入可以是任意大小（高度和宽度必须相同）、任意维度的图片。
+数据文件
+  与caffe不同，cuda-convnet的输入数据以python pickle的形式保存。
+  http://www.cs.toronto.edu/~kriz/cifar-10-py-colmajor.tar.gz，这里是CIFAR－10数据集的例子。
+  数据必须被分成几batches，例如CIFAR－10数据集就被分成为6个batches，每batch包含10000幅图片的数据。其中data_batch_6是测试图片。
+  在uitl.cuh文件中有这么一行：
+    ／＊ 这个大小以MB为单位，是GPU上存储的最大的数据量。＊／
+    #define MAX_DATA_ON_GPU             200 
+    如果你batch大小设置不是很大，那就可以一次性将整batch读取到显存，这样可以节省时间。
+    否则，一次读取到显存的图片量只是minibatch设置的值，默认为128，也就是说一次只能读取128幅图片到显存。此时上面这个宏定义已经没有多大意义。
+    
+内部数据的分页
+  在data_batch里怎么存储数据并不是固定的，你可以按照自己的习惯来。
+  但你必须写一个data provider来解析你的数据，这data provider必须返回程序授受的数据形式。convdata.py中有几个例子。
+  在convdata.py中有一个很好的例子：CIFARDataProvider，我们可以模仿这个类来写我们自己data provider。下面是几个要注意的点：
+    1. data provider必须有一个get_next_batch方法来返回数据矩阵和标记向量。
+    2. data provider必须有一个get_data_dims(self, idx=0)方法来返回数据的维度。比如训练图片是32＊32＊3的图片，那么就要返回
