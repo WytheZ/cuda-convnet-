@@ -1,0 +1,66 @@
+你需要对卷积神经网络非常了解才能理解这些参数的意义。如果你不懂卷积神经网络请先了解它再来看。
+
+介绍
+  为了定义一个卷积神经网络的结构模型，你必须定义一个配置文件来说明每一层的结构以及层与层之间的联结方式。
+  这个文件一般以.cfg为后缀名。你可以在目录example-layers下找到一些例子。
+  
+层配置文件－基本的东西
+  
+  1. 数据层
+    在层配置文件中，最开始的就是数据层。它的定义方式很固定：
+    [data]
+    type=data
+    dataIdx=0
+
+    [labels]
+    type=data
+    dataIdx=1
+    方括号里是这一层的名字，你可以随便起，但最好见名知义。这里我们分别取data 和 label作为它们的名字。
+    其中最关键的是type = data，它指明这两层是数据层。
+    在Data中我们介绍了data provider的写法，那里说了get_next_batch要返回两个元素：数据矩阵和label向量。
+    dataIdx = 0表示这个叫data的层对应的是数据矩阵，是图片的信息。
+    dataIdx = 1表示这个叫label的层对应的是label向量，是每幅图片的label。
+    
+  2. 卷积层
+    卷积层是卷积神经网络中最重要的一种层。它对输入“图片”做卷积操作，所以要指定一些filters的信息。
+    [conv32]
+    type=conv
+    inputs=data
+    channels=3
+    filters=32
+    padding=4
+    stride=1
+    filterSize=9
+    neuron=logistic
+    initW=0.00001
+    initB=0.5
+    sharedBiases=true
+    partialSum=1
+    解释：
+    conv32：名字
+    type = conv：指明该层是卷积层
+    inputs = data：指明该层以data层作为输入
+    channels = 3：说明该层的输入层data产生3通道的图片（即彩色图片）。
+        因为我们规定“图片”必须是长宽一样的，所以只要指定通道数，我们就可以计算输入的维度，不需要额外的指定。
+        这个值必须是1、2、3或4的倍数。
+    filters = 32：指明这一层有32个filters，它的值必须是16的倍数。
+    padding = 4：默认值是0，对输入维度进行扩充，在每个边缘填充4个0像素。
+        因为是做卷积操作，指定合适的padding可以让输出和输入保持同样的维度。
+    stride = 1：默认值是1，卷积的步长。这个值一般不会设置太大，否则会丢失梯度信息。
+    filterSize = 9：filter的大小，9＊9（注意是3通道的，每个filter有9＊9＊3个值）。
+        由于步长是1，padding是，这一层的输出维度和输入是一样的，都是32＊32的，但channels会改变为32。
+    neuron = logistic：默认值是ident，指明神经元的激励方式，不指定则采用默认值，即不做任何激励。
+        除了数据层和后面介绍的代价层外，所有的层都可以指定激励方式，可选的激励方式在NeuronTypes介绍。
+        现在最常用的是relu。
+    initW = 0.00001：默认值是0.01，指定初始权值的分布，这里初始权值满足均值为0标准差为0.00001的正态分布。
+    initB = 0.5：默认值是0，指明偏差bias的初始值。
+    sharedBiases = true：默认是true，指定为true时是指对于一个filter，无论它在输入的哪个位置做卷积，它的Biases是一样的。
+        以这一层例，指定为true，则这一层的Biases的数量就是32个。这也是经常采取的策略。
+        如果指定为false，Biases就很多了，每一个filter在每一个位置的卷积都会有一个不同的Biases。
+    partialSum = 1：这个值会影响梯度的计算，到底取什么值才能训练出最好的模型谁也不知道，最好多取几个值看看结果。
+        它的取值也有限制，假如输出大小是32 channels的32＊32，那么这个值必须被32＊32整除。
+        另外这个值会造成额外的空间代价，需要的额外空间量是：（这一层的参数数目）＊（这一层的输出神经元数目）／（partialSum）。
+        对这个值不太明白，请高人指点。
+    这个卷积层的输出是32＊N＊N，N的计算取决于padding、stride、filterSize的选取，
+    N ＝ （InputSize - filterSize + 2 * padding) ／stride ＋ 1，这里InputSize是32，所以N＝32。
+    注意：如果filters 是32的位数，GPU加速会更显著。
