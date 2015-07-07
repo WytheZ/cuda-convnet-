@@ -1,5 +1,6 @@
 介绍
   这个程序的输入可以是任意大小（高度和宽度必须相同）、任意维度的图片。
+  
 数据文件
   与caffe不同，cuda-convnet的输入数据以python pickle的形式保存。
   http://www.cs.toronto.edu/~kriz/cifar-10-py-colmajor.tar.gz，这里是CIFAR－10数据集的例子。
@@ -9,10 +10,38 @@
     #define MAX_DATA_ON_GPU             200 
     如果你batch大小设置不是很大，那就可以一次性将整batch读取到显存，这样可以节省时间。
     否则，一次读取到显存的图片量只是minibatch设置的值，默认为128，也就是说一次只能读取128幅图片到显存。此时上面这个宏定义已经没有多大意义。
-    
-内部数据的分页
+
+data provider的写法
   在data_batch里怎么存储数据并不是固定的，你可以按照自己的习惯来。
-  但你必须写一个data provider来解析你的数据，这data provider必须返回程序授受的数据形式。convdata.py中有几个例子。
+  但你必须写一个data provider类来解析你的数据，这data provider必须返回程序授受的数据形式。convdata.py中有几个例子。
   在convdata.py中有一个很好的例子：CIFARDataProvider，我们可以模仿这个类来写我们自己data provider。下面是几个要注意的点：
-    1. data provider必须有一个get_next_batch方法来返回数据矩阵和标记向量。
-    2. data provider必须有一个get_data_dims(self, idx=0)方法来返回数据的维度。比如训练图片是32＊32＊3的图片，那么就要返回
+    1. data provider必须有一个get_next_batch方法来返回数据矩阵label向量。
+    2. data provider必须有一个get_data_dims(self, idx=0)方法来返回数据的维度。
+        比如训练图片是32＊32＊3的图片，那么就要返回32＊32＊3。
+        这个方法的写法比较固定，几乎是一样的，可以参考CIFARDataProvider。
+    3. get_next_batch返回的数据矩阵必须是C-ordered，也就是说矩阵中每一列表示一幅图片的所有像素值，如果是彩色图片，像素以RGB的形式存储。
+        以CIFAR为例，数据矩阵的维度就是3072＊10000。每一列前1024个值是R通道的像素，中间的1024个值是G通道的，最后1024个是B通道的。
+    4. 数据矩阵的元素类型必须是单精度的浮点数。
+  如果你以logistic regression作为优化目标，那data provider还要满足下面几个要求：
+    5. get_next_batch返回的label向量的维度必须是1＊（图片的数/每data_batch），以CIFAR－10为例，就是1＊10000。
+    6. label的值必须从0开始，以CIFAR－10为例label就是0、1、2、3、4、5、6、7、8、9.
+    7. label向量的元素必须是单精度浮点型。
+    8. data provider必须定义一个get_num_classes(self)方法来返回分类的类别数。
+        CIFARDataProvider的这个方法是从LabeledDataProvider（定义data.py）继承过来的。
+
+注册data provider
+  程序本身提供了三个data provier，定义于convdata.py。
+  1. CIFARDataProvider用于解析CIFAR－10的数据。
+  2. CroppedCifarDataProvider也是解析CIFAR－10的数据。
+      但它比较高端一点，它在32＊32＊3的图片中随机提取24＊24＊3的crop并做随机翻转作为真正的训练图片。
+      这是一种数据增强的方法。也叫做data jitter。利用这种方法可以将CIFAR－10数据集的量扩大128倍。
+      它实现的其实就是经典论文imagenet classification with deep convolutional neural networks中的数据增强方法。
+  3. DummyConvNetDataProvider。这个data provider会产生一些随机的数据，你可以利用随机的数据来检测梯度的计算是否正确。
+      一般情况下应该是不用做这种检测的，因为如果程序的梯度计算有错误，早就会被发现改正了。
+      但如果你想修改代码，增加或修改层的计算方法，那你最好检测一下你的梯度计算是否正确。
+        比如新加坡国立大学最近发表的论文Network In Network就对这个代码进行了修改，增加了一种新型的层cccp，实现后最好检测一下（当然已经有代码了）。
+  当你写好适用于你自己数据data provider后，还必须注册它。注册很简单，只需在convnet.py的底部加上一行代码DataProvider.register_data_provider。
+    比如DataProvider.register_data_provider('pascal', 'parse pascal voc data', PascalVocDataProvider)。
+    其中第一个参数是data provider的名字，也就是命令行中--data-provider=时用的名字。
+    第二个参数是对这个data provider的解释。
+    第三个参数是你定义的data provider类的名称。
