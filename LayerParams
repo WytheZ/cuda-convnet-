@@ -64,3 +64,20 @@
     这个卷积层的输出是32＊N＊N，N的计算取决于padding、stride、filterSize的选取，
     N ＝ （InputSize - filterSize + 2 * padding) ／stride ＋ 1，这里InputSize是32，所以N＝32。
     注意：如果filters 是32的位数，GPU加速会更显著。
+  3. 局部连接层－不权值共享
+    这种层和卷积层很相似，但是没有权值共享的机制，也就是说对于输入“图像”的不同位置(x,y)运用不同的filter进行卷积。
+    权值共享的时候是图像的每一个位置都是用一个filter进行卷积。
+    这种机制只用在特定的情况下，比如人脸识别中，就是要在不同的位置检测不同的特征，所以不需要权值共享。
+    [local32]
+    type=local
+    inputs=conv32
+    channels=32
+    filters=32
+    padding=4
+    stride=1
+    filterSize=9
+    neuron=logistic
+    initW=0.00001
+    initB=0
+    可以看出，除了type = local外，其实的和卷积层都一样。
+    
